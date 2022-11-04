@@ -3,6 +3,7 @@ package rebalancing
 import (
 	"context"
 
+	"github.com/dnsx2k/mongo-sharding-trend-service/pkg/lookupclient"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -15,12 +16,14 @@ type Rebalancer interface {
 type serviceCtx struct {
 	mongoClientPrimary *mongo.Client
 	mongoClientHot     *mongo.Client
+	lookupClient       *lookupclient.ClientCtx
 }
 
-func New(mongoClientPrimary *mongo.Client, mongoClientHot *mongo.Client) Rebalancer {
+func New(mongoClientPrimary *mongo.Client, mongoClientHot *mongo.Client, lookupClient *lookupclient.ClientCtx) Rebalancer {
 	return &serviceCtx{
 		mongoClientPrimary: mongoClientPrimary,
 		mongoClientHot:     mongoClientHot,
+		lookupClient:       lookupClient,
 	}
 }
 
@@ -42,7 +45,9 @@ func (sc *serviceCtx) MoveIn(ctx context.Context, IDs []string) error {
 		return err
 	}
 
-	//TODO: call lookup service
+	if err := sc.lookupClient.SendLookupEntries("hot", IDs); err != nil {
+		return err
+	}
 
 	_, err = collection.DeleteMany(ctx, bson.M{"id": bson.M{"$in": IDs}})
 	if err != nil {
@@ -70,7 +75,9 @@ func (sc *serviceCtx) MoveOut(ctx context.Context, IDs []string) error {
 		return err
 	}
 
-	//TODO: call lookup service
+	if err := sc.lookupClient.DeleteLookupEntries("hot", IDs); err != nil {
+		return err
+	}
 
 	_, err = collectionHot.DeleteMany(ctx, bson.M{"id": bson.M{"$in": IDs}})
 	if err != nil {

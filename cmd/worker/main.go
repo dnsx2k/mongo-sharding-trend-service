@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/dnsx2k/mongo-sharding-trend-service/cmd/worker/trendmsghandler"
+	"github.com/dnsx2k/mongo-sharding-trend-service/pkg/lookupclient"
 	"github.com/dnsx2k/mongo-sharding-trend-service/pkg/rebalancing"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -32,8 +33,10 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	rebalancer := rebalancing.New(mongoClientPrimary, mongoClientHot)
-	msgHandler := trendmsghandler.New(conn, rebalancer, "")
+
+	lookupClient := lookupclient.New(cfg.LookupServiceBaseURL)
+	rebalancer := rebalancing.New(mongoClientPrimary, mongoClientHot, lookupClient)
+	msgHandler := trendmsghandler.New(conn, rebalancer, "trendapp.q.trendUpdate")
 	go func() {
 		_ = msgHandler.Process(context.Background())
 	}()
