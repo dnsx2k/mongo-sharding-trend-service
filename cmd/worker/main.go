@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 
+	"github.com/dnsx2k/mongo-sharding-trend-service/cmd/worker/trendmsghandler"
+	"github.com/dnsx2k/mongo-sharding-trend-service/pkg/rebalancing"
+	amqp "github.com/rabbitmq/amqp091-go"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -23,4 +26,15 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	//"amqp://guest:guest@localhost:5672/"
+	conn, err := amqp.Dial(cfg.AMQPConnectionString)
+	if err != nil {
+		panic(err)
+	}
+	rebalancer := rebalancing.New(mongoClientPrimary, mongoClientHot)
+	msgHandler := trendmsghandler.New(conn, rebalancer, "")
+	go func() {
+		_ = msgHandler.Process(context.Background())
+	}()
 }
