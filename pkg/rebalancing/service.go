@@ -9,8 +9,8 @@ import (
 )
 
 type Rebalancer interface {
-	MoveIn(ctx context.Context, IDs []string) error
-	MoveOut(ctx context.Context, IDs []string) error
+	MoveIn(ctx context.Context, IDs []string, domain string) error
+	MoveOut(ctx context.Context, IDs []string, domain string) error
 }
 
 type serviceCtx struct {
@@ -27,7 +27,7 @@ func New(mongoClientPrimary *mongo.Client, mongoClientHot *mongo.Client, lookupC
 	}
 }
 
-func (sc *serviceCtx) MoveIn(ctx context.Context, IDs []string) error {
+func (sc *serviceCtx) MoveIn(ctx context.Context, IDs []string, domain string) error {
 	collection := sc.mongoClientPrimary.Database("customSharding").Collection("products")
 	cursor, err := collection.Find(ctx, bson.M{"id": bson.M{"$in": IDs}})
 	if err != nil {
@@ -45,7 +45,11 @@ func (sc *serviceCtx) MoveIn(ctx context.Context, IDs []string) error {
 		return err
 	}
 
-	if err := sc.lookupClient.SendLookupEntries("hot", IDs); err != nil {
+	var lookupIn = IDs
+	if domain != "" {
+		lookupIn = []string{domain}
+	}
+	if err := sc.lookupClient.SendLookupEntries("hot", lookupIn); err != nil {
 		return err
 	}
 
@@ -57,7 +61,7 @@ func (sc *serviceCtx) MoveIn(ctx context.Context, IDs []string) error {
 	return nil
 }
 
-func (sc *serviceCtx) MoveOut(ctx context.Context, IDs []string) error {
+func (sc *serviceCtx) MoveOut(ctx context.Context, IDs []string, domain string) error {
 	collection := sc.mongoClientHot.Database("customSharding").Collection("products")
 	cursor, err := collection.Find(ctx, bson.M{"id": bson.M{"$in": IDs}})
 	if err != nil {
@@ -75,7 +79,12 @@ func (sc *serviceCtx) MoveOut(ctx context.Context, IDs []string) error {
 		return err
 	}
 
-	if err := sc.lookupClient.DeleteLookupEntries("hot", IDs); err != nil {
+	var lookupIn = IDs
+	if domain != "" {
+		lookupIn = []string{domain}
+	}
+
+	if err := sc.lookupClient.DeleteLookupEntries("hot", lookupIn); err != nil {
 		return err
 	}
 
